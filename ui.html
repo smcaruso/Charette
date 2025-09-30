@@ -1,0 +1,243 @@
+<style>
+
+  :root {
+    --primary-surface: #ffffff;
+    --primary-text-icons: #202020;
+    --selection: #0c8ce9;
+    --selection-label: #ffffff;
+    --disabled: #0c8ce988;
+    --secondary-surface: #cccccc;
+    --line-numbers: #8c8c8c;
+    --inner-stroke-raised: #ffffff44;
+    --inner-stroke-recessed: #00000044;
+    font-family: Inter, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary-surface: #2c2c2c;
+      --primary-text-icons: #dddddd;
+      --secondary-surface: #202020;
+    }
+  }
+
+  body {
+    background: var(--primary-surface);
+    color: var(--primary-text-icons);
+    margin: 0;
+    padding: 0;
+    height: 100dvh;
+    width: 100dvw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .toolbar {
+    flex-grow: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 22px;
+    transition: padding 0.25s ease-in-out;
+  }
+
+  .selection-title {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .plugin-content {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: row;
+    height: calc(100dvh - 75px);
+    width: 100dvw;
+  }
+
+  .plugin-content .pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 50%;
+  }
+
+  button {
+    background: var(--selection);
+    border: none;
+    box-shadow: 0px 1px 1px inset var(--inner-stroke-raised);
+    border-radius: 5px;
+    color: var(--selection-label);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 100;
+    line-height: 17px;
+    padding: 6px 20px;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  button:disabled {
+    background: var(--disabled);
+    box-shadow: 0px 1px 1px inset var(--inner-stroke-recessed);
+    pointer-events: none;
+    color:hsl(from var(--selection-label) 0 0 50%);
+  }
+
+  button:hover {
+    box-shadow: 0px 1px 2px inset var(--inner-stroke-recessed);
+  }
+
+  .button-row {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+  }
+
+  .pane {
+    padding: 0 22px;
+  }
+
+  .tab-bar {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    padding: 22px 0;
+  }
+
+  .tab {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 11px 20px;
+    background-color: var(--primary-surface);
+    box-shadow: 0px -1px 1px inset var(--inner-stroke-raised);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: filter 0.25s ease-in-out;
+  }
+  
+  .tab.active {
+    box-shadow: 0px 1px 1px inset var(--inner-stroke-raised);
+    background-color: var(--selection);
+  }
+
+  .tab:hover {
+    filter: brightness(1.25);
+  }
+
+  .reload:hover {
+    rotate: -360deg;
+    transition: rotate 0.5s ease-in-out;
+  }
+
+  .size {
+    height: 13px;
+    border: 3px solid var(--primary-text-icons);
+    border-radius: 6px;
+    transition: border 0.25s ease-in-out;
+  }
+
+  .size:hover {
+    border: 3px solid var(--disabled);
+    cursor: pointer;
+  }
+
+  .size.active {
+    border: 3px solid var(--selection);
+  }
+  
+</style>
+
+
+<div class="toolbar">
+  <div class="selection-title">
+    <span style="font-style: italic; font-size: 14px; line-height: 17px;">
+      Make a selection to start.
+    </span>
+  </div>
+  <div class="button-row">
+    <button id="generate" disabled>Generate code</button>
+    <button id="view" disabled>View saved code</button>
+  </div>
+  <div class="size-selector" style="width: 50%; display: none; flex-direction: row; justify-content: flex-end; gap: 8px;">
+    <div class="size small active" style="width: 10px;"></div>
+    <div class="size large" style="width: 18px;"></div>
+  </div>
+</div>
+
+<div class="plugin-content" style="display:none;">
+
+  <div class="pane left" style="background: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 16px),
+    var(--secondary-surface);">
+    <div class="inner-toolbar" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between;">
+      <div class="tab-bar">
+        <div class="tab active">HTML</div>
+        <div class="tab">CSS</div>
+      </div>
+      <div class="reload" style="cursor: pointer;" onclick="console.log('Regenerating...')">
+        <svg width="19" height="18" viewBox="0 0 19 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.833313 2.33331V7.33331M0.833313 7.33331H5.83331M0.833313 7.33331L4.69998 3.69998C5.85074 2.55116 7.34369 1.80745 8.95388 1.58091C10.5641 1.35436 12.2043 1.65726 13.6273 2.44395C15.0504 3.23064 16.1793 4.45851 16.8438 5.94256C17.5084 7.42661 17.6726 9.08643 17.3118 10.6719C16.951 12.2575 16.0847 13.6828 14.8434 14.7331C13.6021 15.7835 12.0531 16.4019 10.4297 16.4954C8.80638 16.5888 7.19663 16.1521 5.84303 15.2511C4.48943 14.3501 3.46531 13.0336 2.92498 11.5" stroke="var(--primary-text-icons)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+    <div class="code-area">
+      code
+    </div>
+  </div>
+  
+  <div class="pane right">
+
+  </div>
+
+</div>
+
+
+<script>
+
+  const selectionTitle = document.querySelector('.selection-title')
+  const generateButton = document.getElementById('generate')
+  const viewButton = document.getElementById('view')
+  const pluginContent = document.querySelector('.plugin-content')
+  const buttonRow = document.querySelector('.button-row')
+  const sizeSelector = document.querySelector('.size-selector')
+  
+  onmessage = (event) => {
+    if (event.data.pluginMessage.selection === false || event.data.pluginMessage.name === null) {
+      selectionTitle.innerHTML = `<span style="font-style: italic; font-size: 14px; line-height: 17px;">Make a selection to start.</span>`
+      generateButton.disabled = true
+      viewButton.disabled = true
+      return
+    }
+    selectionTitle.innerHTML = addIconSVG(event.data.pluginMessage.type) + `<span style="font-size: 18px; font-weight: 600;">${event.data.pluginMessage.name}</span>`
+    console.log(event)
+    generateButton.disabled = false
+    viewButton.disabled = false
+  }
+
+  generateButton.onclick = () => {
+    pluginContent.style.display = 'flex'
+    buttonRow.style.display = 'none'
+    sizeSelector.style.display = 'flex'
+    parent.postMessage({ pluginMessage: { type: 'generate' } }, '*')
+  }
+
+  function addIconSVG(type) {
+    switch (type) {
+      case "COMPONENT": return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="6.4895" y="0.110901" width="4" height="4" transform="rotate(45 6.4895 0.110901)" fill="var(--primary-text-icons)"/>
+<rect x="2.93933" y="3.66113" width="4" height="4" transform="rotate(45 2.93933 3.66113)" fill="var(--primary-text-icons)"/>
+<rect x="10.0398" y="3.66119" width="4" height="4" transform="rotate(45 10.0398 3.66119)" fill="var(--primary-text-icons)"/>
+<rect x="6.48962" y="7.21143" width="4" height="4" transform="rotate(45 6.48962 7.21143)" fill="var(--primary-text-icons)"/>
+</svg>
+`
+      case "FRAME": return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M9 12.4068V9.92544H4V12.5037C4 12.7778 3.77614 13 3.5 13C3.22391 12.9999 3 12.7778 3 12.5037V9.92544H0.5C0.223858 9.92544 0 9.70325 0 9.42917C0 9.15508 0.223858 8.9329 0.5 8.9329H3V3.97018L0.5 3.97018C0.223858 3.97018 6.43711e-07 3.74799 0 3.4739C2.52962e-08 3.19982 0.223858 2.97763 0.5 2.97763H3V0.5932C3 0.319161 3.22392 0.0969936 3.5 0.0969281C3.77614 0.0969281 4 0.31912 4 0.5932V2.97763H9V0.496272C9 0.222188 9.22386 0 9.5 0C9.77614 0 10 0.222188 10 0.496272V2.97763H12.5C12.7761 2.97763 13 3.19982 13 3.4739C13 3.74799 12.7761 3.97018 12.5 3.97018H10V8.9329H12.5C12.7761 8.9329 13 9.15508 13 9.42917C13 9.70325 12.7761 9.92544 12.5 9.92544H10V12.4068C10 12.6809 9.77614 12.9031 9.5 12.9031C9.22386 12.9031 9 12.6809 9 12.4068ZM4 8.9329H9V3.97018L4 3.97018V8.9329Z" fill="var(--primary-text-icons)"/>
+</svg>`
+      default: return null
+    }
+  }
+
+</script>

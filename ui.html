@@ -63,7 +63,7 @@
   .plugin-content .pane {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: calc(100% - 41px);
     width: 50%;
   }
 
@@ -80,6 +80,7 @@
     padding: 6px 20px;
     text-align: center;
     text-decoration: none;
+    transition: filter 0.25s ease-in-out, box-shadow 0.25s ease-in-out;
   }
 
   button:disabled {
@@ -90,7 +91,45 @@
   }
 
   button:hover {
+    filter: brightness(1.25);
     box-shadow: 0px 1px 2px inset var(--inner-stroke-recessed);
+  }
+
+  .segmented-control {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    padding: 4px;
+    background: var(--secondary-surface);
+    border-radius: 6px;
+  }
+
+  button.seg.inactive {
+    background: var(--secondary-surface);
+    color: var(--primary-text-icons);
+    box-shadow: none;
+  }
+
+  button.seg.active {
+    pointer-events: none;
+  }
+
+  button.seg.inactive:hover {
+    filter: brightness(1.25);
+  }
+
+  button.export {
+    background: var(--secondary-surface);
+    color: var(--primary-text-icons);
+    font-size: 12px;
+    padding: 10px 20px;
+    flex-grow: 1;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
   }
 
   .button-row {
@@ -100,14 +139,27 @@
   }
 
   .pane {
-    padding: 0 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 22px;
+    gap: 22px;
+  }
+
+  .pane.right .controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-grow: 0;
   }
 
   .tab-bar {
     display: flex;
     flex-direction: row;
     gap: 10px;
-    padding: 22px 0;
+    padding: 0;
   }
 
   .tab {
@@ -122,6 +174,7 @@
   }
   
   .tab.active {
+    color: var(--selection-label);
     box-shadow: 0px 1px 1px inset var(--inner-stroke-raised);
     background-color: var(--selection);
   }
@@ -150,6 +203,32 @@
   .size.active {
     border: 3px solid var(--selection);
   }
+
+  textarea#code-area {
+    background: none;
+    outline: none;
+    border: none;
+    resize: none;
+    /* flex-grow: 1; */
+    height: calc(100% - 92px);
+    color: var(--primary-text-icons);
+  }
+
+  ::-webkit-scrollbar {
+  width: 2px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--secondary-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-numbers);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-text-icons);
+}
   
 </style>
 
@@ -183,13 +262,24 @@
         <svg width="19" height="18" viewBox="0 0 19 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.833313 2.33331V7.33331M0.833313 7.33331H5.83331M0.833313 7.33331L4.69998 3.69998C5.85074 2.55116 7.34369 1.80745 8.95388 1.58091C10.5641 1.35436 12.2043 1.65726 13.6273 2.44395C15.0504 3.23064 16.1793 4.45851 16.8438 5.94256C17.5084 7.42661 17.6726 9.08643 17.3118 10.6719C16.951 12.2575 16.0847 13.6828 14.8434 14.7331C13.6021 15.7835 12.0531 16.4019 10.4297 16.4954C8.80638 16.5888 7.19663 16.1521 5.84303 15.2511C4.48943 14.3501 3.46531 13.0336 2.92498 11.5" stroke="var(--primary-text-icons)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
     </div>
-    <div class="code-area">
-      code
-    </div>
+    <textarea id="code-area" placeholder="Generating code..."></textarea>
   </div>
   
   <div class="pane right">
-
+    <div id="preview-area" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; ">
+      <iframe id="preview-frame" sandbox="allow-scripts allow-forms allow-same-origin" style="width: 100%; height: 100%; border: 0; background: none;"></iframe>
+    </div>
+    <div class="controls">
+      <div class="segmented-control">
+        <button class="seg active" id="preview">Preview & Export</button>
+        <button class="seg inactive" id="animate">Animate</button>
+      </div>
+      <div class="export-options" style="display: flex; flex-direction: row; gap: 10px; width: 100%; overflow:visible">
+        <button class="export" id="copy-html">Copy HTML</button>
+        <button class="export" id="copy-css">Copy CSS</button>
+        <button class="export" id="save">Save as...</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -197,47 +287,151 @@
 
 <script>
 
+  // UI element selections
+
   const selectionTitle = document.querySelector('.selection-title')
   const generateButton = document.getElementById('generate')
   const viewButton = document.getElementById('view')
   const pluginContent = document.querySelector('.plugin-content')
   const buttonRow = document.querySelector('.button-row')
   const sizeSelector = document.querySelector('.size-selector')
+  const htmlTab = document.querySelector('.tab-bar .tab:nth-child(1)')
+  const cssTab = document.querySelector('.tab-bar .tab:nth-child(2)')
+  const codeArea = document.getElementById('code-area')
+  const smallSize = document.querySelector('.size-selector .size.small')
+  const largeSize = document.querySelector('.size-selector .size.large')
+  const copyHtmlButton = document.getElementById('copy-html')
+  const copyCssButton = document.getElementById('copy-css')
+  const saveButton = document.getElementById('save')
+  const previewArea = document.getElementById('preview-area')
+  const previewFrame = document.getElementById('preview-frame')
+
+  let generatedCode = { html: "", css: ""  }
+  let currentTab = 'HTML'
+
+  let editorWindowOpened = false
+
+  codeArea.value = generatedCode.html
   
+  // Handles messages from the main plugin thread (code.ts)
+
   onmessage = (event) => {
-    if (event.data.pluginMessage.selection === false || event.data.pluginMessage.name === null) {
-      selectionTitle.innerHTML = `<span style="font-style: italic; font-size: 14px; line-height: 17px;">Make a selection to start.</span>`
-      generateButton.disabled = true
-      viewButton.disabled = true
-      return
+
+    const pluginMsg = event.data.pluginMessage
+    if (!pluginMsg) { return }
+
+    if (!editorWindowOpened) {
+      // case for selection of objects in the Figma canvas
+      if (pluginMsg.msgType !== "selection" || pluginMsg.name === null) { resetToolbarMessage(); return }
+      else { fillSelectionName(pluginMsg) }
     }
-    selectionTitle.innerHTML = addIconSVG(event.data.pluginMessage.type) + `<span style="font-size: 18px; font-weight: 600;">${event.data.pluginMessage.name}</span>`
-    console.log(event)
+
+    else if (pluginMsg.msgType === "code") {
+      generatedCode = pluginMsg.code
+      if (currentTab === 'HTML') codeArea.value = generatedCode.html
+      else codeArea.value = generatedCode.css
+      renderPreview()
+    }
+
+  }
+
+  generateButton.onclick = () => {
+    openEditorWindow()
+  }
+
+  htmlTab.onclick = () => {
+    currentTab = 'HTML'
+    htmlTab.classList.add('active')
+    cssTab.classList.remove('active')
+    codeArea.value = generatedCode.html || '<div class="example">Hello, world!</div>'
+  }
+
+  cssTab.onclick = () => {
+    currentTab = 'CSS'
+    cssTab.classList.add('active')
+    htmlTab.classList.remove('active')
+    codeArea.value = generatedCode.css || `.example {\n  font-size: 16px;\n  color: var(--primary-text-icons);\n}`
+  }
+
+  codeArea.addEventListener('input', () => {
+    if (currentTab === 'HTML') generatedCode.html = codeArea.value
+    else generatedCode.css = codeArea.value
+    renderPreview()
+  })
+
+  codeArea.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const start = codeArea.selectionStart
+    const end = codeArea.selectionEnd
+    codeArea.value = codeArea.value.substring(0, start) + '  ' + codeArea.value.substring(end)
+    codeArea.selectionStart = codeArea.selectionEnd = start + 2
+    codeArea.dispatchEvent(new Event('input'))
+  }
+})
+
+  function renderPreview() {
+
+    const doc = `<!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>
+              :root, html, body { height: 100% }
+              * { box-sizing: border-box }
+              body {
+                margin: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+              ${generatedCode.css}
+            </style>
+          </head>
+          <body>
+            ${generatedCode.html}
+          </body>
+        </html>`
+
+    previewFrame.srcdoc = doc
+    
+  }
+
+  copyHtmlButton.innerHTML = addIconSVG("COPY") + "Copy HTML"
+  copyCssButton.innerHTML = addIconSVG("COPY") + "Copy CSS"
+  saveButton.innerHTML = addIconSVG("SAVE") + "Save as..."
+
+  function addIconSVG(type) {
+    switch (type) {
+      case "INSTANCE":
+      case "COMPONENT": return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="6.4895" y="0.110901" width="4" height="4" transform="rotate(45 6.4895 0.110901)" fill="var(--primary-text-icons)"/><rect x="2.93933" y="3.66113" width="4" height="4" transform="rotate(45 2.93933 3.66113)" fill="var(--primary-text-icons)"/><rect x="10.0398" y="3.66119" width="4" height="4" transform="rotate(45 10.0398 3.66119)" fill="var(--primary-text-icons)"/><rect x="6.48962" y="7.21143" width="4" height="4" transform="rotate(45 6.48962 7.21143)" fill="var(--primary-text-icons)"/></svg>`
+      case "FRAME": return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12.4068V9.92544H4V12.5037C4 12.7778 3.77614 13 3.5 13C3.22391 12.9999 3 12.7778 3 12.5037V9.92544H0.5C0.223858 9.92544 0 9.70325 0 9.42917C0 9.15508 0.223858 8.9329 0.5 8.9329H3V3.97018L0.5 3.97018C0.223858 3.97018 6.43711e-07 3.74799 0 3.4739C2.52962e-08 3.19982 0.223858 2.97763 0.5 2.97763H3V0.5932C3 0.319161 3.22392 0.0969936 3.5 0.0969281C3.77614 0.0969281 4 0.31912 4 0.5932V2.97763H9V0.496272C9 0.222188 9.22386 0 9.5 0C9.77614 0 10 0.222188 10 0.496272V2.97763H12.5C12.7761 2.97763 13 3.19982 13 3.4739C13 3.74799 12.7761 3.97018 12.5 3.97018H10V8.9329H12.5C12.7761 8.9329 13 9.15508 13 9.42917C13 9.70325 12.7761 9.92544 12.5 9.92544H10V12.4068C10 12.6809 9.77614 12.9031 9.5 12.9031C9.22386 12.9031 9 12.6809 9 12.4068ZM4 8.9329H9V3.97018L4 3.97018V8.9329Z" fill="var(--primary-text-icons)"/></svg>`
+      case "COPY": return `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.16666 12.5H3.33332C2.8913 12.5 2.46737 12.3244 2.15481 12.0118C1.84225 11.6993 1.66666 11.2754 1.66666 10.8333V3.33332C1.66666 2.8913 1.84225 2.46737 2.15481 2.15481C2.46737 1.84225 2.8913 1.66666 3.33332 1.66666H10.8333C11.2754 1.66666 11.6993 1.84225 12.0118 2.15481C12.3244 2.46737 12.5 2.8913 12.5 3.33332V4.16666M9.16666 7.49999H16.6667C17.5871 7.49999 18.3333 8.24618 18.3333 9.16666V16.6667C18.3333 17.5871 17.5871 18.3333 16.6667 18.3333H9.16666C8.24618 18.3333 7.49999 17.5871 7.49999 16.6667V9.16666C7.49999 8.24618 8.24618 7.49999 9.16666 7.49999Z" stroke="var(--primary-text-icons)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      case "SAVE": return `<svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.16663 1.66666H3.33329C2.89127 1.66666 2.46734 1.84225 2.15478 2.15481C1.84222 2.46737 1.66663 2.8913 1.66663 3.33332V16.6667C1.66663 17.1087 1.84222 17.5326 2.15478 17.8452C2.46734 18.1577 2.89127 18.3333 3.33329 18.3333H13.3333C13.7753 18.3333 14.1992 18.1577 14.5118 17.8452C14.8244 17.5326 15 17.1087 15 16.6667V7.49999M9.16663 1.66666L15 7.49999M9.16663 1.66666L9.16663 7.49999H15" stroke="var(--primary-text-icons)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      default: return null
+    }
+  }
+
+  function resetToolbarMessage() {
+    selectionTitle.innerHTML = `<span style="font-style: italic; font-size: 14px; line-height: 17px;">Make a selection to start.</span>`
+    generateButton.disabled = true
+    viewButton.disabled = true
+  }
+
+  function fillSelectionName(pluginMsg) {
+    selectionTitle.innerHTML = addIconSVG(pluginMsg.type) + `<span style="font-size: 18px; font-weight: 600;">${pluginMsg.name}</span>`
     generateButton.disabled = false
     viewButton.disabled = false
   }
 
-  generateButton.onclick = () => {
+  function openEditorWindow() {
     pluginContent.style.display = 'flex'
     buttonRow.style.display = 'none'
     sizeSelector.style.display = 'flex'
     parent.postMessage({ pluginMessage: { type: 'generate' } }, '*')
-  }
-
-  function addIconSVG(type) {
-    switch (type) {
-      case "COMPONENT": return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect x="6.4895" y="0.110901" width="4" height="4" transform="rotate(45 6.4895 0.110901)" fill="var(--primary-text-icons)"/>
-<rect x="2.93933" y="3.66113" width="4" height="4" transform="rotate(45 2.93933 3.66113)" fill="var(--primary-text-icons)"/>
-<rect x="10.0398" y="3.66119" width="4" height="4" transform="rotate(45 10.0398 3.66119)" fill="var(--primary-text-icons)"/>
-<rect x="6.48962" y="7.21143" width="4" height="4" transform="rotate(45 6.48962 7.21143)" fill="var(--primary-text-icons)"/>
-</svg>
-`
-      case "FRAME": return `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M9 12.4068V9.92544H4V12.5037C4 12.7778 3.77614 13 3.5 13C3.22391 12.9999 3 12.7778 3 12.5037V9.92544H0.5C0.223858 9.92544 0 9.70325 0 9.42917C0 9.15508 0.223858 8.9329 0.5 8.9329H3V3.97018L0.5 3.97018C0.223858 3.97018 6.43711e-07 3.74799 0 3.4739C2.52962e-08 3.19982 0.223858 2.97763 0.5 2.97763H3V0.5932C3 0.319161 3.22392 0.0969936 3.5 0.0969281C3.77614 0.0969281 4 0.31912 4 0.5932V2.97763H9V0.496272C9 0.222188 9.22386 0 9.5 0C9.77614 0 10 0.222188 10 0.496272V2.97763H12.5C12.7761 2.97763 13 3.19982 13 3.4739C13 3.74799 12.7761 3.97018 12.5 3.97018H10V8.9329H12.5C12.7761 8.9329 13 9.15508 13 9.42917C13 9.70325 12.7761 9.92544 12.5 9.92544H10V12.4068C10 12.6809 9.77614 12.9031 9.5 12.9031C9.22386 12.9031 9 12.6809 9 12.4068ZM4 8.9329H9V3.97018L4 3.97018V8.9329Z" fill="var(--primary-text-icons)"/>
-</svg>`
-      default: return null
-    }
+    editorWindowOpened = true
+    renderPreview()
   }
 
 </script>

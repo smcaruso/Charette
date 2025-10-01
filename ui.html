@@ -130,6 +130,8 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
+    white-space: nowrap;
+    min-inline-size: 140px;
   }
 
   .button-row {
@@ -142,8 +144,10 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    justify-content: center;
     padding: 22px;
     gap: 22px;
+    flex-grow: 1;
   }
 
   .pane.right .controls {
@@ -252,13 +256,13 @@
 <div class="plugin-content" style="display:none;">
 
   <div class="pane left" style="background: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 16px),
-    var(--secondary-surface);">
+    var(--secondary-surface); max-width: 420px;">
     <div class="inner-toolbar" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between;">
       <div class="tab-bar">
         <div class="tab active">HTML</div>
         <div class="tab">CSS</div>
       </div>
-      <div class="reload" style="cursor: pointer;" onclick="console.log('Regenerating...')">
+      <div class="reload" style="cursor: pointer;">
         <svg width="19" height="18" viewBox="0 0 19 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.833313 2.33331V7.33331M0.833313 7.33331H5.83331M0.833313 7.33331L4.69998 3.69998C5.85074 2.55116 7.34369 1.80745 8.95388 1.58091C10.5641 1.35436 12.2043 1.65726 13.6273 2.44395C15.0504 3.23064 16.1793 4.45851 16.8438 5.94256C17.5084 7.42661 17.6726 9.08643 17.3118 10.6719C16.951 12.2575 16.0847 13.6828 14.8434 14.7331C13.6021 15.7835 12.0531 16.4019 10.4297 16.4954C8.80638 16.5888 7.19663 16.1521 5.84303 15.2511C4.48943 14.3501 3.46531 13.0336 2.92498 11.5" stroke="var(--primary-text-icons)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
     </div>
@@ -294,6 +298,7 @@
   const viewButton = document.getElementById('view')
   const pluginContent = document.querySelector('.plugin-content')
   const buttonRow = document.querySelector('.button-row')
+  const reloadButton = document.querySelector('.reload')
   const sizeSelector = document.querySelector('.size-selector')
   const htmlTab = document.querySelector('.tab-bar .tab:nth-child(1)')
   const cssTab = document.querySelector('.tab-bar .tab:nth-child(2)')
@@ -306,6 +311,7 @@
   const previewArea = document.getElementById('preview-area')
   const previewFrame = document.getElementById('preview-frame')
 
+  let selectionData = null
   let generatedCode = { html: "", css: ""  }
   let currentTab = 'HTML'
 
@@ -319,6 +325,7 @@
 
     const pluginMsg = event.data.pluginMessage
     if (!pluginMsg) { return }
+    if (pluginMsg.name) { selectionData = pluginMsg }
 
     if (!editorWindowOpened) {
       // case for selection of objects in the Figma canvas
@@ -337,6 +344,32 @@
 
   generateButton.onclick = () => {
     openEditorWindow()
+  }
+
+  viewButton.onclick = () => {
+    openEditorWindow()
+    parent.postMessage({ pluginMessage: { type: 'viewCode', id: getCurrentStorageId() } }, '*')
+  }
+
+  smallSize.onclick = () => {
+    smallSize.classList.add('active')
+    largeSize.classList.remove('active')
+    parent.postMessage({ pluginMessage: { type: 'makeSmall' } }, '*')
+  }
+
+  largeSize.onclick = () => {
+    largeSize.classList.add('active')
+    smallSize.classList.remove('active')
+    parent.postMessage({ pluginMessage: { type: 'makeLarge' } }, '*')
+  }
+
+  reloadButton.onclick = () => {
+    if (confirm("Clear edits and regenerate code?") == true) {
+      if (editorWindowOpened) {
+        parent.postMessage({ pluginMessage: { type: 'generate' } }, '*')
+        fillSelectionName(selectionData)
+      }
+    } else return
   }
 
   htmlTab.onclick = () => {
@@ -359,16 +392,25 @@
     renderPreview()
   })
 
+  codeArea.addEventListener('change', () => {
+    parent.postMessage({ pluginMessage: { type: 'saveCode', id: getCurrentStorageId(), code: generatedCode } }, '*')
+  })
+
   codeArea.addEventListener('keydown', e => {
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    const start = codeArea.selectionStart
-    const end = codeArea.selectionEnd
-    codeArea.value = codeArea.value.substring(0, start) + '  ' + codeArea.value.substring(end)
-    codeArea.selectionStart = codeArea.selectionEnd = start + 2
-    codeArea.dispatchEvent(new Event('input'))
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const start = codeArea.selectionStart
+      const end = codeArea.selectionEnd
+      codeArea.value = codeArea.value.substring(0, start) + '  ' + codeArea.value.substring(end)
+      codeArea.selectionStart = codeArea.selectionEnd = start + 2
+      codeArea.dispatchEvent(new Event('input'))
+    }
+  })
+
+  function getCurrentStorageId() {
+    const rawTitle = document.getElementById('selectionTitle')?.innerText || ''
+    return rawTitle.toLowerCase().replace(/[^a-z0-9]/g, '')
   }
-})
 
   function renderPreview() {
 
@@ -402,6 +444,60 @@
   copyCssButton.innerHTML = addIconSVG("COPY") + "Copy CSS"
   saveButton.innerHTML = addIconSVG("SAVE") + "Save as..."
 
+// --- Copy to clipboard helpers and handlers ---
+  async function copyToClipboardPlain(text) {
+    if (!text) return false
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text)
+        return true
+      }
+    } catch {}
+    // Fallback for older/blocked contexts
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      return ok
+    } catch {
+      return false
+    }
+  }
+
+  async function handleCopy(btn, getText, label) {
+    const original = btn.innerHTML
+    const txt = getText()
+    if (!txt) {
+      btn.innerText = 'Nothing to copy'
+      setTimeout(() => { btn.innerHTML = original }, 1200)
+      return
+    }
+    const ok = await copyToClipboardPlain(txt)
+    if (ok) {
+      btn.innerText = '✓ Copied'
+    } else {
+      btn.innerText = 'Copy failed'
+    }
+    setTimeout(() => { btn.innerHTML = original }, 900)
+  }
+
+  copyHtmlButton.onclick = () => handleCopy(copyHtmlButton, () => generatedCode.html, 'HTML')
+  copyCssButton.onclick = () => handleCopy(copyCssButton, () => generatedCode.css, 'CSS')
+
+  // --- Save as... handler ---
+  saveButton.onclick = () => {
+    const base = (selectionData?.name || 'export').toLowerCase().replace(/[^a-z0-9]/g, '') || 'export'
+    const htmlName = base.endsWith('.html') ? base : `${base}.html`
+    const doc = `<!doctype html>\n<html>\n  <head>\n    <meta charset="utf-8">\n    <meta name="viewport" content="width=device-width,initial-scale=1">\n    <style>\n${generatedCode.css || ''}\n    </style>\n    <title>${base}</title>\n  </head>\n  <body>\n${generatedCode.html || ''}\n  </body>\n</html>\n`
+    downloadText(htmlName, doc)
+  }
+
   function addIconSVG(type) {
     switch (type) {
       case "INSTANCE":
@@ -420,7 +516,7 @@
   }
 
   function fillSelectionName(pluginMsg) {
-    selectionTitle.innerHTML = addIconSVG(pluginMsg.type) + `<span style="font-size: 18px; font-weight: 600;">${pluginMsg.name}</span>`
+    selectionTitle.innerHTML = addIconSVG(pluginMsg.type) + `<span id="selectionTitle" style="font-size: 18px; font-weight: 600;">${pluginMsg.name}</span>`
     generateButton.disabled = false
     viewButton.disabled = false
   }
@@ -434,4 +530,20 @@
     renderPreview()
   }
 
+  // Helper to trigger file download
+  function downloadText(filename, text) {
+    const ext = (filename.split('.').pop() || '').toLowerCase()
+    const type = ext === 'css' ? 'text/css;charset=utf-8' : (ext === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8')
+    const blob = new Blob([text], { type })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    document.body.appendChild(link)
+    // use requestAnimationFrame to ensure layout/append is committed before click
+    requestAnimationFrame(() => {
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(link.href)
+    })
+  }
 </script>
